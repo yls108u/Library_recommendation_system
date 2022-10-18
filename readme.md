@@ -21,5 +21,7 @@ https://docs.google.com/presentation/d/10_HgqXmyc8QRP4uh6VgHjHQczXp69FkZ/edit?us
 Doing recommendation.
 The algorithm is navie __Collaborative Filter__ (CF).
 
+### The report is at:
+https://docs.google.com/presentation/d/1iA2pFEpgqHyy1AKEl-TOZRX6D9lZ4Kss/edit?usp=sharing&ouid=104583669107890199313&rtpof=true&sd=true
 
 ## The visualization can be found at the director: ./result 
