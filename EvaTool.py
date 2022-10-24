@@ -2,9 +2,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 import recmetrics
+import json
 import pandas as pd
 
-class Evaluator():
+class _Evaluator():
     def __init__(self, recommend_list:dict, testing_ans:pd.DataFrame) -> None:
         self.__recommend_list = recommend_list
         self.__gth = testing_ans
@@ -80,6 +81,23 @@ class Evaluator():
             'f1':{'val':f1, 'maxpos':int(f1_max)}
         }
 
+def precision_recall(predictionfile,gthcsv, topN_range ,savepath)->dict:
+    print("calculate precision, recall, f1, falsepositive rate")
+    book_user_test = pd.read_csv(gthcsv)
+    recommend_list = {}
+    with open(predictionfile,"r") as jf:
+        recommend_list = json.load(jf)
+    
+    eva = _Evaluator(
+        recommend_list=recommend_list, 
+        testing_ans=book_user_test
+    )
+    cmp_diff_n = eva.different_topN(max_topN=topN_range, rule_table=None)
+    with open(savepath, "w+") as log:
+        json.dump(cmp_diff_n, log, indent=4, ensure_ascii=False)
+    return cmp_diff_n
+
+
 class VisualizationKit():
     def __init__(self) -> None:
         pass
@@ -135,7 +153,7 @@ class VisualizationKit():
     def ROC(fpr, recall,savepath, showinline=True):
         plt.figure(dpi=400)
         plt.plot(fpr,recall)
-        plt.plot(list(x/100 for x in range(0,101)), list(y/100 for y in range(0,101)))
+        plt.plot(list(x/100 for x in range(0,101)), list(y/100 for y in range(0,101)), linestyle="--")
         plt.ylabel("recall")
         plt.xlabel("fp rate")
         plt.title("ROC")
@@ -155,4 +173,4 @@ class VisualizationKit():
         plt.savefig(savepath)
         if not showinline:
             plt.close()
-    
+
