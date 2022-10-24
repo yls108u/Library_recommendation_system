@@ -24,4 +24,12 @@ The algorithm is navie __Collaborative Filter__ (CF).
 ### The report is at:
 https://docs.google.com/presentation/d/1iA2pFEpgqHyy1AKEl-TOZRX6D9lZ4Kss/edit?usp=sharing&ouid=104583669107890199313&rtpof=true&sd=true
 
+
+## ``` evaluation.py```:
+
+caculating the metrices $\text{precision},\text{recall},\text{F1-score}$ and plotting ROC, PR curve.
+
+
+
+
 ## The visualization can be found at the director: ./result 
