@@ -1,9 +1,12 @@
+from curses import noecho
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 import recmetrics
 import json
 import pandas as pd
+
+
 
 class _Evaluator():
     def __init__(self, recommend_list:dict, testing_ans:pd.DataFrame) -> None:
@@ -72,29 +75,32 @@ class _Evaluator():
             recall.append(recall_n)
             fpr.append(fpr_n)
             f1.append(2/((1/recall_n)+(1/prec_n)))
-        f1_max = np.argmax(np.array(f1))
-
         return {
             'precision':prec, 
             'recall':recall, 
             'fpr':fpr,
-            'f1':{'val':f1, 'maxpos':int(f1_max)}
+            'f1':f1
         }
 
-def precision_recall(predictionfile,gthcsv, topN_range ,savepath)->dict:
+def precision_recall(predictionfile,gthcsv,topN_range,savepath)->dict:
     print("calculate precision, recall, f1, falsepositive rate")
     book_user_test = pd.read_csv(gthcsv)
     recommend_list = {}
-    with open(predictionfile,"r") as jf:
-        recommend_list = json.load(jf)
+    if isinstance(predictionfile, dict):
+        recommend_list=predictionfile
+    else:
+        with open(predictionfile,"r") as jf:
+            recommend_list = json.load(jf)
     
     eva = _Evaluator(
         recommend_list=recommend_list, 
         testing_ans=book_user_test
     )
     cmp_diff_n = eva.different_topN(max_topN=topN_range, rule_table=None)
-    with open(savepath, "w+") as log:
-        json.dump(cmp_diff_n, log, indent=4, ensure_ascii=False)
+    if savepath is not None:
+        with open(savepath, "w+") as log:
+            json.dump(cmp_diff_n, log, indent=4, ensure_ascii=False)
+    
     return cmp_diff_n
 
 
@@ -104,42 +110,41 @@ class VisualizationKit():
 
     @staticmethod
     def plot_cmp_different_n(
-        prec, recall, f1, f1maxpos, max_topN, savepath, showinline=True
+        prec, recall, f1, savepath, showinline=True
     ):
+        max_topN = len(prec)
+        f1maxpos = int(np.argmax(np.array(f1)))
         # f1_max = f1maxpos-1 because starting from N = 0
         plt.figure(dpi=400)
         plt.plot(
-            list(k for k in range(0,max_topN+1)), 
+            list(k for k in range(0,max_topN)), 
             prec, 
             label = "precision",color="orange"
         )
         plt.plot(
-            list(k for k in range(0,max_topN+1)),
+            list(k for k in range(0,max_topN)),
             recall,
             label = "recall",color = "blue"
         )
         plt.plot(
-            list(k for k in range(0,max_topN+1)),
+            list(k for k in range(0,max_topN)),
             f1,
             label = "f1",color="green"
         )
-        plt.scatter(f1maxpos, f1[f1maxpos], color="green")
-
-        f1_max_des = f"F1-score max at topN ={f1maxpos-1}\n\
-            - f1:{f1[f1maxpos]:.2f}\n\
-            - precision:{prec[f1maxpos]:.2f}\n\
-            - recall:{recall[f1maxpos]:.2f}"
-
+        plt.scatter(f1maxpos, f1[f1maxpos], color="purple")
         plt.annotate(
-            text=f1_max_des, 
+            text=f"Top N : {f1maxpos-1}\nF1 max : {f1[f1maxpos]:.2f}\nPrecision : {prec[f1maxpos]:.2f}\nRecall : {recall[f1maxpos]:.2f}", 
             xytext=(f1maxpos+len(f1)*0.3, f1[f1maxpos]+0.05),color="black",
             xy=(f1maxpos, f1[f1maxpos]),
             arrowprops={
-                'width':0.01,'headlength':10,'headwidth':3,
-                'facecolor':'#000','shrink':0
+                'width':0.01,'headlength':10,'headwidth':4,
+                'facecolor':"black","shrink":0
             },
-            fontsize=9
+            va = "center",
+            bbox = dict(boxstyle="square", fc="white"),
+            fontsize=12
         )
+        
 
         plt.xlabel("N")
         plt.title("Top N")
@@ -151,11 +156,15 @@ class VisualizationKit():
     
     @staticmethod
     def ROC(fpr, recall,savepath, showinline=True):
+        parti = np.array(list(i for i in recall))*(1/len(fpr))
+        auc = np.sum(parti)
         plt.figure(dpi=400)
-        plt.plot(fpr,recall)
-        plt.plot(list(x/100 for x in range(0,101)), list(y/100 for y in range(0,101)), linestyle="--")
-        plt.ylabel("recall")
-        plt.xlabel("fp rate")
+        plt.plot(fpr,recall,label=f"AUC: {auc}")
+        plt.plot(fpr, fpr, linestyle="--",color="orange")
+        #plt.fill_between(fpr, fpr,recall, color="orange",alpha= 0.3)
+        plt.ylabel("Recall")
+        plt.xlabel("False Positive Rate")
+        plt.text(0.8,0, f"AUC : {auc:.2f}",bbox=dict(facecolor='none', edgecolor='black'))
         plt.title("ROC")
         plt.tight_layout()
         plt.savefig(savepath)
@@ -173,4 +182,3 @@ class VisualizationKit():
         plt.savefig(savepath)
         if not showinline:
             plt.close()
-
