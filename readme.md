@@ -64,8 +64,8 @@ I/O for json file by using python native json package.
 
 Doing visualization by using ```matplotlib.pyplot``` 
 
-### ```dataset```
+### ```dataset.py```
 
-costumized dataset for our task
+Some process tool to our dataset
 
 ## The visualization can be found at the director: ./result 

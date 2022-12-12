@@ -3,10 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 
-def plot_tsne_2d(X, name,savepath, tsneresult=False, showinline=True):
+def plot_tsne_2d(X,name,savepath, labels=None, tsneresult=False, showinline=True):
     xtsne=TSNE(n_components=2).fit_transform(X)
     plt.figure(dpi=800)
-    plt.scatter(xtsne[:,0], xtsne[:,1])
+    if labels is None:
+        plt.scatter(xtsne[:,0], xtsne[:,1])
+    else:
+        plt.scatter(
+            xtsne[:,0], xtsne[:,1], s=10, 
+            c = labels, cmap ='viridis'
+        )
+    
     plt.title(name)
     plt.legend()
     plt.savefig(savepath)
