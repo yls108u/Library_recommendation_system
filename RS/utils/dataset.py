@@ -6,6 +6,12 @@ import pandas as pd
 from sklearn.cluster import KMeans
 
 
+"""
+Some functions to process our dataset.
+"""
+
+
+
 def transpose_df(df:pd.DataFrame, col_to:str)->pd.DataFrame:
     col = df.columns.tolist()
     coldf = pd.DataFrame(data = col, columns=[col_to]) 
