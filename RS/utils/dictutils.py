@@ -18,7 +18,7 @@ def loadjson(jsfilepath:os.PathLike, encoding='utf-8'):
     
     ret = None
     with open(jsfilepath, "r", encoding=encoding) as jf: 
-        ret = json.load(jsfilepath)
+        ret = json.load(jf)
     return ret
 
 def writejson(dictionary:dict, jsfilepath:os.PathLike, encoding='utf-8')->None:
