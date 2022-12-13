@@ -81,7 +81,7 @@ def build_2domain_feature_extraction_matrix(
         return r
 
 
-def recommend_according_course_selection_records(
+def topK_with_cf(
     train_user_book_course_matrix: np.ndarray,
     test_users:list,test_user_course_matrix:np.ndarray,
     savingpath:os.PathLike
@@ -100,7 +100,7 @@ def recommend_according_course_selection_records(
     writejson(recommend_list, savingpath)
 
 
-def generate_rslist(dataset:Mydataset, resultroot:os.PathLike, d:torch.device):
+def recommend_according_course_selection_records(dataset:Mydataset, resultroot:os.PathLike, d:torch.device):
     
     """
     resultroot 
@@ -143,7 +143,7 @@ def generate_rslist(dataset:Mydataset, resultroot:os.PathLike, d:torch.device):
 
     print("prediction ..")
     rslist_save_to=os.path.join(resultroot, "recommendlist.json")
-    prediction = recommend_according_course_selection_records(
+    prediction = topK_with_cf(
         train_user_book_course_matrix=book_user_matrix.numpy(),
         test_users=test_user,
         test_user_course_matrix=test_user_course_matrix,
