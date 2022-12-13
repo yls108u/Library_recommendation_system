@@ -50,7 +50,7 @@ class _Evaluator():
         
 
     def different_topN(self, max_topN)->dict:
-        prec, recall, f1, fpr = [1], [0], [0], [0]
+        prec, recall, f1, fpr = [], [], [], []
         for n in tqdm(range(1,max_topN+1)):
             prec_n, recall_n, fpr_n = self.top_N(topN=n)
             prec.append(prec_n)
