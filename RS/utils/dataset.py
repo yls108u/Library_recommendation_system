@@ -4,6 +4,7 @@ import os
 import sys
 import pandas as pd
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import normalize
 sys.path.append(os.path.dirname(__file__))
 from plotutils import plot_tsne_2d
 from dictutils import *
@@ -67,17 +68,30 @@ class Dataset():
     def dataname(self) -> list:
         return self._dname
 
-    def getdata(self, dataname:str)-> pd.DataFrame:
-        if dataname == "all_data":
-            return self._data.copy()
-        return self._data[dataname].copy()
+    def getdata(self, dataname:str, normalize_value=False)-> pd.DataFrame:
+
+        if dataname not in self._data:
+            print(f"No {dataname} such a data")
+            raise KeyError
+        df = self._data[dataname].copy()
+        if normalize_value:
+            uid = df.uid.tolist()
+            df= df.drop(columns=['uid'])
+            v = normalize(df.values, axis=1, norm="l1")
+            df_nor = pd.DataFrame(data=v, columns=df.columns)
+            df_nor['uid'] = uid
+            col_order = df_nor.columns.tolist()[-1:]\
+                +df_nor.columns.tolist()[:-1]
+            return df_nor[col_order]
+
+        return df
     
     def extraction_value(self,dname:str, dropout_col:list, to_torch=False):
         
         if dname not in self._dname:
             print("no such a data")
             raise KeyError
-      
+       
         value =(
             self._data[dname].drop(columns=dropout_col)
         ).values
@@ -86,21 +100,46 @@ class Dataset():
             return torch.tensor(value, dtype=torch.double)
         return value
 
-    def mask_dataset(self, dname:str)->None:
+    def mask_dataset(self, dataname:str)->pd.DataFrame:
         """
         To make the target df 's value to 0
         (e.g.: mask up the ground truth of testing data)
         """
-        if dname not in self._dname:
-            print(f"No such {dname} data")
+        if dataname not in self._dname:
+            print(f"No such {dataname} data")
             raise KeyError
-        itsuid = self._data[dname].uid.tolist()
-        self._data[dname]=self._data[dname].drop(col=['uid'])
-        mask_df = pd.DataFrame(
-            data=(self._data[dname]).values*0.0,
-            columns=self._data[dname].columns.tolist()
+        df = self._data[dataname].copy()
+        uid = df.uid.tolist()
+        df = df.drop(columns = ['uid'])
+        df_mask = pd.DataFrame(
+            data=df.values*0.0,
+            columns=df.columns.tolist()
         )
-        mask_df['uid'] = itsuid
-        col_order =mask_df.columns.tolist()[-1:]+ mask_df.columns.tolist()[:-1]
-        mask_df = mask_df[col_order]
-        self._data[dname] = mask_df
+        df_mask['uid'] = uid
+        col_order = df_mask.columns.tolist()[-1:]+df_mask.columns.tolist()[:-1]
+        return df_mask[col_order]
+    
+def Crossdomain(dataset_:Dataset=None, datafolder:dict=None):
+    
+    dataset = None
+    if dataset_ is not None:
+        dataset=dataset_
+    else:
+        dataset = Dataset(datafolder=datafolder)
+
+    user_book_all = pd.concat(
+        [dataset.getdata(dataname="training_user_book", normalize_value=True), 
+        dataset.mask_dataset(dataname="testing_user_book")], 
+        axis=0
+    )
+    user_course_all = pd.concat(
+        [dataset.getdata(dataname="training_user_course"), 
+        dataset.getdata(dataname="testing_user_course")], 
+        axis=0
+    )
+    crossdomain = pd.concat(
+        [user_book_all, user_course_all.drop(columns=['uid'])],
+        axis=1
+    )
+    return crossdomain
+
