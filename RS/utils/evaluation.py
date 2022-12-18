@@ -56,7 +56,7 @@ class _Evaluator():
             prec.append(prec_n)
             recall.append(recall_n)
             fpr.append(fpr_n)
-            f1.append(2/((1/(recall_n+1e-6))+(1/(prec_n+1e-6))))
+            f1.append(2/((1/(recall_n+1e-10))+(1/(prec_n+1e-10))))
         return {
             'precision':prec, 
             'recall':recall, 
