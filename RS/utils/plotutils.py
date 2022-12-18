@@ -3,24 +3,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 
-def plot_tsne_2d(X,name,savepath, labels=None, tsneresult=False, showinline=True):
-    xtsne=TSNE(n_components=2).fit_transform(X)
-    plt.figure(dpi=800)
-    if labels is None:
-        plt.scatter(xtsne[:,0], xtsne[:,1])
-    else:
-        plt.scatter(
-            xtsne[:,0], xtsne[:,1], s=10, 
-            c = labels, cmap ='viridis'
-        )
+def plot_simple_curve(y:list,title:str,savename:os.PathLike,require=max,showinline=True):
     
-    plt.title(name)
-    plt.legend()
-    plt.savefig(savepath)
+    x = list(str(i+1) for i in range(len(y)))
+    plt.figure(dpi = 800)
+    plt.plot(x, y)
+    plt.title(title)
+    
+    if require is not None:
+        y_require = require(y)
+        plt.plot(x[2:], ([y_require]*len(y))[2:],linestyle='--', color='olive',alpha=0.5)
+        plt.text(0, y_require, f"{y_require:.3f}")
+
+    plt.tight_layout()
+    plt.savefig(savename)
     if not showinline:
         plt.close()
-    if tsneresult:
-        return xtsne
+
+def zoom_in_topk(whole:list, topk:int, plot_title,savename,reuqire=max, showinline=False):
+    plot_simple_curve(
+        y = whole[:topk],
+        title=plot_title,
+        savename=savename,
+        showinline=showinline,
+        require=reuqire
+    )
+
+
 
 def plot_PRF1_different_n(prec, recall, f1, savepath, showinline=True, annotate=True):
         
@@ -36,10 +45,10 @@ def plot_PRF1_different_n(prec, recall, f1, savepath, showinline=True, annotate=
     if annotate:
         plt.annotate(
         text=f"Top N : {f1maxpos-1}\nF1 max : {f1[f1maxpos]:.2f}\nPrecision : {prec[f1maxpos]:.2f}\nRecall : {recall[f1maxpos]:.2f}", 
-        xytext=(f1maxpos+len(f1)*0.3, f1[f1maxpos]+0.1),color="black",
+        xytext=(max_topN+2, 0.0),color="black",
         xy=(f1maxpos, f1[f1maxpos]),
         arrowprops={
-            'width':0.01,'headlength':10,'headwidth':4,
+            'width':0.01,'headlength':6,'headwidth':4,
             'facecolor':"black","shrink":0
         },
         va = "center",
@@ -64,7 +73,7 @@ def ROC(fpr, recall,savepath, showinline=True):
     #plt.fill_between(fpr, fpr,recall, color="orange",alpha= 0.3)
     plt.ylabel("Recall")
     plt.xlabel("False Positive Rate")
-    plt.text(0.8,0, f"AUC : {auc:.2f}",bbox=dict(facecolor='none', edgecolor='black'))
+    plt.text(0.0,0.8, f"AUC : {auc:.2f}",bbox=dict(facecolor='none', edgecolor='black'))
     plt.title("ROC")
     plt.tight_layout()
     plt.savefig(savepath)
@@ -94,13 +103,39 @@ def plotLoss(loss:list, savename:os.PathLike,showinline=True, require=min)->None
     if not showinline:
         plt.close()
 
-def plot_comparison(x:list, labels:list, title:str, savename:os.PathLike, showinline=True):
-    e = list(_ for _ in range(1,len(x[0])+1))
+def plot_comparison(x:list, labels:list, title:str, savename:os.PathLike, require=max, showinline=True):
+    e = list(str(_) for _ in range(1,len(x[0])+1))
     plt.figure(dpi=800)
     for xi, label in zip(x, labels):
-        plt.plot(e, xi, label = label)
+        if require is not None:
+            y_ = require(xi)
+            plt.plot(e, [y_]*len(e), linestyle="--", color="olive",alpha=0.3)
+            plt.plot(e, xi, label =f"{label}, best:{y_:.3f}")
+        else:
+            plt.plot(e, xi, label =f"{label}")
     plt.title(title)
     plt.legend()
+    plt.tight_layout()
+    print(savename)
     plt.savefig(savename)
     if not showinline:
         plt.close()
+
+def plot_tsne_2d(X,name,savepath, labels=None, tsneresult=False, showinline=True):
+    xtsne=TSNE(n_components=2).fit_transform(X)
+    plt.figure(dpi=800)
+    if labels is None:
+        plt.scatter(xtsne[:,0], xtsne[:,1])
+    else:
+        plt.scatter(
+            xtsne[:,0], xtsne[:,1], s=10, 
+            c = labels, cmap ='viridis'
+        )
+    
+    plt.title(name)
+    plt.legend()
+    plt.savefig(savepath)
+    if not showinline:
+        plt.close()
+    if tsneresult:
+        return xtsne
