@@ -7,10 +7,10 @@ sys.path.append(os.path.dirname(__file__))
 from utils.dictutils import *
 from utils.mf import WeightedALS_MF, ALS_MF
 from utils.plotutils import plotLoss
-from utils.dataset import combine_multi_domain, Dataset
+from utils.dataset import build_cross_domain_matrix, Dataset
 from utils.evaluation import Evaluate
 
-def construct_mf(R, factorizer, mf_args:dict)->ALS_MF:
+def construct_matrixfactorizer(R, factorizer, mf_args:dict)->ALS_MF:
     mfer=None
     
     if factorizer == "WeightedALS_MF":
@@ -35,7 +35,7 @@ def mf(
 )->torch.Tensor:
 
     print(factorizer)
-    matrixfactorizer = construct_mf(R=matrix,factorizer=factorizer,mf_args=mf_args)
+    matrixfactorizer = construct_matrixfactorizer(R=matrix,factorizer=factorizer,mf_args=mf_args)
     h = matrixfactorizer.train(device=d,tmp_savepath=model_save_path, max_iteration=mf_args['epochs'])
     plotLoss(h['loss'], savename=os.path.join(model_save_path, "wmse.jpg"), showinline=vis_showinline)
     ret = {}
@@ -44,55 +44,6 @@ def mf(
             os.path.join(model_save_path,f"{k}.pt")
         ).cpu()
     return ret
-
-def build_cross_domain_matrix(dataset:Dataset, domains:list, savedir:os.PathLike, return_data="pd")->tuple:
-    
-    """
-    - Please view RS.utils.dataset.combine_multi_domain to know how to set the ```dataset``` and ```domains```.
-        
-    - cross_domain_matrix_save :
-        save cross_domain.csv and cross_domain.np file in cross_domain_matrix_save.
-
-        default : working director
-    
-    """
-    if not os.path.exists(savedir):
-        print(f"make {savedir} dir")
-        os.mkdir(savedir)
-    
-    info = {
-        'testing_range':dataset.getdata(
-            dataname="training_user_book"
-        ).shape[0],
-        'testing_user': dataset.getdata(
-            dataname="testing_user_book"
-        ).uid.tolist(),
-        'all_book':dataset.getdata(
-            dataname="testing_user_book").drop(columns=['uid']
-        ).columns.tolist(),
-        'all_course':dataset.getdata(
-            dataname="testing_user_course").drop(columns=['uid'] 
-        ).columns.tolist()
-    }
-    writejson(info, os.path.join(savedir,"info.json"))
-
-    crossdomain_user_item_df=combine_multi_domain(Dataset=dataset, domains=domains)
-    
-    cross_domain_df_saving_path = os.path.join(savedir, "cross_domain.csv")
-    print(f"save cross domain df to : {cross_domain_df_saving_path}")
-    crossdomain_user_item_df.to_csv(cross_domain_df_saving_path,index =False)
-    
-    cross_domain_matrix_saving_path = os.path.join(savedir, "cross_domain")
-    print(f"save cross domain matrix to : {cross_domain_matrix_saving_path}")
-    cross_domain_matrix = (crossdomain_user_item_df.drop(columns=['uid'])).values
-    np.save(cross_domain_matrix_saving_path,cross_domain_matrix)
-    
-    if return_data == "pd":
-        return info, crossdomain_user_item_df
-    elif return_data == "np":
-        return info, cross_domain_matrix
-    elif return_data == "torch":
-        return info, torch.tensor(cross_domain_matrix,dtype=torch.double)
 
 def generate_recommend_list(testing_user_book_prediction,testing_user:list,result_saving_path:os.PathLike):
     print("generate recommend list ..")
@@ -138,9 +89,8 @@ def Cross_MF(
  
 
 if __name__ == "__main__":
-    dataroot = os.path.join("..","data")
     
-    """
+    dataroot = os.path.join("..","data")
     datafolder = {
         "training_user_course":os.path.join(
             dataroot,"course","train.csv"
@@ -172,14 +122,7 @@ if __name__ == "__main__":
         savedir=os.path.join(dataroot, "crossdomain"),
         return_data="torch"  
     )
-    """
 
-  
-    cross_matrix = torch.tensor(
-        np.load(os.path.join(dataroot, "crossdomain","cross_domain.npy")),
-        dtype=torch.double
-    )
-    print(cross_matrix.size())
     info = loadjson(os.path.join(dataroot, "crossdomain","info.json"))
     mf_args = {
         'latency':40,'l2_reg':0.1,
