@@ -4,7 +4,7 @@ import os
 import sys
 from tqdm import tqdm
 sys.path.append(os.path.dirname(__file__))
-from utils.plotutils import plotLoss
+from plotutils import plotLoss
 
 
 class ALS_MF():
@@ -95,6 +95,10 @@ class ALS_MF():
                 torch.save(
                     self._embedding['item'].cpu(),
                     os.path.join(tmp_savepath, "item.pt")
+                )
+                torch.save(
+                    self.prediction().cpu(),
+                    os.path.join(tmp_savepath, "prediction.pt")
                 )
 
             early = self._early_return_flag(e = early,improve = improve)
