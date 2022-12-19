@@ -1,0 +1,205 @@
+import os
+import sys
+from tqdm import tqdm
+import numpy as np
+import torch
+sys.path.append(os.path.dirname(__file__))
+from utils.dictutils import *
+from utils.mf import WeightedALS_MF, ALS_MF
+from utils.plotutils import plotLoss
+from utils.dataset import combine_multi_domain, Dataset
+from utils.evaluation import Evaluate
+
+def construct_mf(R, factorizer, mf_args:dict)->ALS_MF:
+    mfer=None
+    
+    if factorizer == "WeightedALS_MF":
+        mfer = WeightedALS_MF(
+            R=R,
+            fill_empty=mf_args['fill_empty'],
+            w_m = mf_args['w_m'],w_obs = mf_args['w_obs'],
+            latency = mf_args['latency'],
+            l2_reg =  mf_args['l2_reg']   
+        )
+    elif factorizer == "ALS_MF":
+        mfer = ALS_MF(
+            R=R,latency = mf_args['latency'],l2_reg =  mf_args['l2_reg'],
+        )
+    return mfer
+
+def mf(
+    matrix:torch.Tensor,
+    model_save_path:os.PathLike,d:torch.device=torch.device('cpu'),
+    factorizer="WeightedALS_MF", mf_args:dict={'l2_reg':0.1, 'latency':40},
+    vis_showinline:bool=False, return_result:list=['prediction']
+)->torch.Tensor:
+
+    print(factorizer)
+    matrixfactorizer = construct_mf(R=matrix,factorizer=factorizer,mf_args=mf_args)
+    h = matrixfactorizer.train(device=d,tmp_savepath=model_save_path, max_iteration=mf_args['epochs'])
+    plotLoss(h['loss'], savename=os.path.join(model_save_path, "wmse.jpg"), showinline=vis_showinline)
+    ret = {}
+    for k in return_result:
+        ret[k]=torch.load(
+            os.path.join(model_save_path,f"{k}.pt")
+        ).cpu()
+    return ret
+
+def build_cross_domain_matrix(dataset:Dataset, domains:list, savedir:os.PathLike, return_data="pd")->tuple:
+    
+    """
+    - Please view RS.utils.dataset.combine_multi_domain to know how to set the ```dataset``` and ```domains```.
+        
+    - cross_domain_matrix_save :
+        save cross_domain.csv and cross_domain.np file in cross_domain_matrix_save.
+
+        default : working director
+    
+    """
+    if not os.path.exists(savedir):
+        print(f"make {savedir} dir")
+        os.mkdir(savedir)
+    
+    info = {
+        'testing_range':dataset.getdata(
+            dataname="training_user_book"
+        ).shape[0],
+        'testing_user': dataset.getdata(
+            dataname="testing_user_book"
+        ).uid.tolist(),
+        'all_book':dataset.getdata(
+            dataname="testing_user_book").drop(columns=['uid']
+        ).columns.tolist(),
+        'all_course':dataset.getdata(
+            dataname="testing_user_course").drop(columns=['uid'] 
+        ).columns.tolist()
+    }
+    writejson(info, os.path.join(savedir,"info.json"))
+
+    crossdomain_user_item_df=combine_multi_domain(Dataset=dataset, domains=domains)
+    
+    cross_domain_df_saving_path = os.path.join(savedir, "cross_domain.csv")
+    print(f"save cross domain df to : {cross_domain_df_saving_path}")
+    crossdomain_user_item_df.to_csv(cross_domain_df_saving_path,index =False)
+    
+    cross_domain_matrix_saving_path = os.path.join(savedir, "cross_domain")
+    print(f"save cross domain matrix to : {cross_domain_matrix_saving_path}")
+    cross_domain_matrix = (crossdomain_user_item_df.drop(columns=['uid'])).values
+    np.save(cross_domain_matrix_saving_path,cross_domain_matrix)
+    
+    if return_data == "pd":
+        return info, crossdomain_user_item_df
+    elif return_data == "np":
+        return info, cross_domain_matrix
+    elif return_data == "torch":
+        return info, torch.tensor(cross_domain_matrix,dtype=torch.double)
+
+def generate_recommend_list(testing_user_book_prediction,testing_user:list,result_saving_path:os.PathLike):
+    print("generate recommend list ..")
+    rlist = {}
+    for i, testu in tqdm(
+        enumerate(testing_user), total=len(testing_user)
+    ):
+        rank = np.argsort(-testing_user_book_prediction[i]).tolist()
+        rlist[str(testu)] = list(str(cate) for cate in rank)
+    
+    rlist_save = os.path.join(result_saving_path, "recommendlist.json")
+    writejson(rlist,rlist_save)
+    
+    print(f"done .., recommend list is at {rlist_save}")
+    return rlist_save
+
+def Cross_MF(
+    cross_matrix:torch.Tensor,testing_range:int,testing_user:list,
+    model_args:dict,model:str="ALS_MF",on_device:torch.device=torch.device('cpu'),
+    model_save_path=os.path.join(".","MF") , 
+    result_saving_path = os.path.join(".","result"),
+    show_loss=False
+)->os.PathLike:
+        
+    print("MF .. ")
+    prediction = mf(
+        matrix=cross_matrix,
+        model_save_path=model_save_path,d=on_device,
+        factorizer=model,mf_args=model_args,
+        vis_showinline=show_loss
+    )['prediction']
+    print("MF done ..")
+
+    testing_user_book_prediction = prediction[
+        testing_range:, 0:1000
+    ].numpy()
+
+    result = generate_recommend_list(
+        testing_user_book_prediction,
+        testing_user, result_saving_path
+    )
+    return result
+ 
+
+if __name__ == "__main__":
+    dataroot = os.path.join("..","data")
+    
+    """
+    datafolder = {
+        "training_user_course":os.path.join(
+            dataroot,"course","train.csv"
+        ),
+        "training_user_book":os.path.join(
+            dataroot,"book","user_cate3_train.csv"
+        ),
+        "testing_user_course":os.path.join(
+            dataroot, "course", "test.csv"
+        ),
+        "testing_user_book":os.path.join(
+            dataroot, "book", "user_cate3_test.csv"
+        )
+    }
+    dataset = Dataset(datafolder=datafolder)
+
+    info, cross_matrix = build_cross_domain_matrix(
+        dataset=dataset,
+        domains=[
+            [   
+                ("training_user_book",False,True),
+                ("testing_user_book",True,True)
+            ],
+            [
+                ("training_user_course", False, False),
+                ("testing_user_course",False,False)
+            ]
+        ],
+        savedir=os.path.join(dataroot, "crossdomain"),
+        return_data="torch"  
+    )
+    """
+
+  
+    cross_matrix = torch.tensor(
+        np.load(os.path.join(dataroot, "crossdomain","cross_domain.npy")),
+        dtype=torch.double
+    )
+    print(cross_matrix.size())
+    info = loadjson(os.path.join(dataroot, "crossdomain","info.json"))
+    mf_args = {
+        'latency':40,'l2_reg':0.1,
+        'fill_empty':torch.mean(cross_matrix).item()/2,
+        'w_obs':1, 'w_m':0.001,
+        'epochs':3
+    }
+    recommend_list_path = Cross_MF(
+        cross_matrix=cross_matrix,
+        testing_range=info['testing_range'],testing_user=info['testing_user'],
+        model="WeightedALS_MF", model_args=mf_args,
+        on_device=torch.device('cuda:3'),
+        model_save_path=os.path.join("..","nonc_testing","model"),
+        result_saving_path=os.path.join("..","nonc_testing")
+    ) 
+    #recommend_list_path = os.path.join("..","nonc_testing","recommendlist.json")
+    print(recommend_list_path)
+    Evaluate(
+        result_root=os.path.join("..","nonc_testing"),
+        recommendlist=recommend_list_path,
+        gth=os.path.join("..","result","testing_user_groundtruth.json"),
+        item_list=list(str(i) for i in range(1000))
+    )
