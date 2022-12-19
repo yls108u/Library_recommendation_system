@@ -121,37 +121,8 @@ class Dataset():
 
 
 
-def combine_multi_domain(Dataset:Dataset=None, datafolder:dict=None, domains:list=[])->pd.DataFrame:
+def __combine_multi_domain(Dataset:Dataset=None, datafolder:dict=None, domains:list=[])->pd.DataFrame:
 
-    """
-    - ```domains```: 
-        
-        a 2d list, each subentry means how to construct a complete domain matrix.
-        it will combine one domain along thire row dimension,
-        and combine all domains by column dimension.Note that it will contain only 1 ```uid``` column
-        inside the crossdomain user-item matrix
-
-        And, each entry is a tuple, include : 
-        
-        (
-            Dataset_key : str, 
-            wether it needed to be masked up to all 0(usually for testing part): bool ,
-            normalize the matrix for each row row or not: bool
-        )
-        
-        - Example:
-        [
-            [
-                ('user_course_train',False,False),
-                ('user_course_test',False,False)
-            ], 
-            [
-                ('user_book_train',False,'True'),
-                ('user_book_test',True, False)
-            ]
-        ]
-    
-    """
 
     if (Dataset is not None) and (datafolder is not None):
         print("Warning : if give a Dataset, it will ignore the datafolder")
@@ -195,28 +166,76 @@ def combine_multi_domain(Dataset:Dataset=None, datafolder:dict=None, domains:lis
         
     return crossdomain_user_item_matrix
 
+def build_cross_domain_matrix(dataset:Dataset, domains:list, savedir:os.PathLike, return_data="pd")->tuple:
     
-def Crossdomain(dataset_:Dataset=None, datafolder:dict=None):
+    """
+    - ```domains```: 
+        
+        a 2d list, each subentry means how to construct a complete domain matrix.
+        it will combine one domain along thire row dimension,
+        and combine all domains by column dimension.Note that it will contain only 1 ```uid``` column
+        inside the crossdomain user-item matrix
+
+        And, each entry is a tuple, include : 
+        
+        (
+            Dataset_key : str, 
+            wether it needed to be masked up to all 0(usually for testing part): bool ,
+            normalize the matrix for each row row or not: bool
+        )
+        
+            Example:
+            [
+                [
+                ('user_course_train',False,False),
+                ('user_course_test',False,False)
+                ], 
+                [
+                ('user_book_train',False,'True'),
+                ('user_book_test',True, False)
+                ]
+            ]
+        
+    - ```cross_domain_matrix_save``` :
+        save cross_domain.csv and cross_domain.np file in cross_domain_matrix_save.
+
+        default : working directory
     
-    dataset = None
-    if dataset_ is not None:
-        dataset=dataset_
-    else:
-        dataset = Dataset(datafolder=datafolder)
+    """
+    if not os.path.exists(savedir):
+        print(f"make {savedir} dir")
+        os.mkdir(savedir)
+    
+    info = {
+        'testing_range':dataset.getdata(
+            dataname="training_user_book"
+        ).shape[0],
+        'testing_user': dataset.getdata(
+            dataname="testing_user_book"
+        ).uid.tolist(),
+        'all_book':dataset.getdata(
+            dataname="testing_user_book").drop(columns=['uid']
+        ).columns.tolist(),
+        'all_course':dataset.getdata(
+            dataname="testing_user_course").drop(columns=['uid'] 
+        ).columns.tolist()
+    }
+    writejson(info, os.path.join(savedir,"info.json"))
 
-    user_book_all = pd.concat(
-        [dataset.getdata(dataname="training_user_book", normalize_value=True), 
-        dataset.mask_dataset(dataname="testing_user_book")], 
-        axis=0
-    )
-    user_course_all = pd.concat(
-        [dataset.getdata(dataname="training_user_course"), 
-        dataset.getdata(dataname="testing_user_course")], 
-        axis=0
-    )
-    crossdomain = pd.concat(
-        [user_book_all, user_course_all.drop(columns=['uid'])],
-        axis=1
-    )
-    return crossdomain
-
+    crossdomain_user_item_df=__combine_multi_domain(Dataset=dataset, domains=domains)
+    
+    cross_domain_df_saving_path = os.path.join(savedir, "cross_domain.csv")
+    print(f"save cross domain df to : {cross_domain_df_saving_path}")
+    crossdomain_user_item_df.to_csv(cross_domain_df_saving_path,index =False)
+    
+    cross_domain_matrix_saving_path = os.path.join(savedir, "cross_domain")
+    print(f"save cross domain matrix to : {cross_domain_matrix_saving_path}")
+    cross_domain_matrix = (crossdomain_user_item_df.drop(columns=['uid'])).values
+    np.save(cross_domain_matrix_saving_path,cross_domain_matrix)
+    
+    if return_data == "pd":
+        return info, crossdomain_user_item_df
+    elif return_data == "np":
+        return info, cross_domain_matrix
+    elif return_data == "torch":
+        return info, torch.tensor(cross_domain_matrix,dtype=torch.double)
