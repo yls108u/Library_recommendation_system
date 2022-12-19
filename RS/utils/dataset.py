@@ -118,6 +118,83 @@ class Dataset():
         df_mask['uid'] = uid
         col_order = df_mask.columns.tolist()[-1:]+df_mask.columns.tolist()[:-1]
         return df_mask[col_order]
+
+
+
+def combine_multi_domain(Dataset:Dataset=None, datafolder:dict=None, domains:list=[])->pd.DataFrame:
+
+    """
+    - ```domains```: 
+        
+        a 2d list, each subentry means how to construct a complete domain matrix.
+        it will combine one domain along thire row dimension,
+        and combine all domains by column dimension.Note that it will contain only 1 ```uid``` column
+        inside the crossdomain user-item matrix
+
+        And, each entry is a tuple, include : 
+        
+        (
+            Dataset_key : str, 
+            wether it needed to be masked up to all 0(usually for testing part): bool ,
+            normalize the matrix for each row row or not: bool
+        )
+        
+        - Example:
+        [
+            [
+                ('user_course_train',False,False),
+                ('user_course_test',False,False)
+            ], 
+            [
+                ('user_book_train',False,'True'),
+                ('user_book_test',True, False)
+            ]
+        ]
+    
+    """
+
+    if (Dataset is not None) and (datafolder is not None):
+        print("Warning : if give a Dataset, it will ignore the datafolder")
+    dataset = Dataset
+    if dataset is None:
+        dataset = Dataset(datafolder=datafolder)
+    
+    def concate_along_row_dimension(m:pd.DataFrame, mi:pd.DataFrame):
+        """
+        concate m and mi along thire row dimesion by using
+        - ```pd.concate(m, mi, axis=0)```
+        """
+        if m is None:
+            return mi
+        else:
+            return pd.concat([m,mi],axis=0)
+
+    crossdomain_user_item_matrix = None
+    for di in domains:
+        single_domain = None
+        for dii in di:
+            dname, mask, nor = dii
+            print(f"name : {dname}, mask: {mask}, normalization: {nor}")
+            dii_df = None
+            if mask:
+                print("     mask up")
+                dii_df = dataset.mask_dataset(dname)
+            else:
+                print(f"    normalization along row : {nor}")
+                dii_df = dataset.getdata(dataname=dname,normalize_value=nor)
+            
+            single_domain = concate_along_row_dimension(single_domain, dii_df)
+        
+        if crossdomain_user_item_matrix is None:
+            crossdomain_user_item_matrix = single_domain
+        else:
+            crossdomain_user_item_matrix = pd.concat(
+                [crossdomain_user_item_matrix, single_domain.drop(columns=['uid'])],
+                axis=1
+            )
+        
+    return crossdomain_user_item_matrix
+
     
 def Crossdomain(dataset_:Dataset=None, datafolder:dict=None):
     
