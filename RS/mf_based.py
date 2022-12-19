@@ -120,11 +120,11 @@ if __name__ == "__main__":
                 ("testing_user_course",False,False)
             ]
         ],
-        savedir=os.path.join(dataroot, "crossdomain"),
+        savedir=os.path.join(dataroot, "crossdomain","normalize"),
         return_data="torch"  
     )
 
-    info = loadjson(os.path.join(dataroot, "crossdomain","info.json"))
+    #info = loadjson(os.path.join(dataroot, "crossdomain","normalize","info.json"))
     mf_args = {
         'latency':40,'l2_reg':0.1,
         'fill_empty':torch.mean(cross_matrix).item()/2,
@@ -136,13 +136,13 @@ if __name__ == "__main__":
         testing_range=info['testing_range'],testing_user=info['testing_user'],
         model="WeightedALS_MF", model_args=mf_args,
         on_device=torch.device('cuda:3'),
-        model_save_path=os.path.join("..","nonc_testing","model"),
-        result_saving_path=os.path.join("..","nonc_testing")
+        model_save_path=os.path.join("..","result","CBMF","normalize","model"),
+        result_saving_path=os.path.join("..","result","CBMF","normalize")
     ) 
-    #recommend_list_path = os.path.join("..","nonc_testing","recommendlist.json")
+    #recommend_list_path = os.path.join("..","result","CBMF","normalize","recommendlist.json")
     print(recommend_list_path)
     Evaluate(
-        result_root=os.path.join("..","nonc_testing"),
+        result_root=os.path.join("..","result","CBMF","normalize"),
         recommendlist=recommend_list_path,
         gth=os.path.join("..","result","testing_user_groundtruth.json"),
         item_list=list(str(i) for i in range(1000))
