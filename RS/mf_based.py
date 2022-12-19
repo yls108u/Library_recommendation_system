@@ -10,29 +10,30 @@ from utils.plotutils import plotLoss
 from utils.dataset import build_cross_domain_matrix, Dataset
 from utils.evaluation import Evaluate
 
-def construct_matrixfactorizer(R, factorizer, mf_args:dict)->ALS_MF:
-    mfer=None
-    
-    if factorizer == "WeightedALS_MF":
-        mfer = WeightedALS_MF(
-            R=R,
-            fill_empty=mf_args['fill_empty'],
-            w_m = mf_args['w_m'],w_obs = mf_args['w_obs'],
-            latency = mf_args['latency'],
-            l2_reg =  mf_args['l2_reg']   
-        )
-    elif factorizer == "ALS_MF":
-        mfer = ALS_MF(
-            R=R,latency = mf_args['latency'],l2_reg =  mf_args['l2_reg'],
-        )
-    return mfer
-
 def mf(
     matrix:torch.Tensor,
     model_save_path:os.PathLike,d:torch.device=torch.device('cpu'),
     factorizer="WeightedALS_MF", mf_args:dict={'l2_reg':0.1, 'latency':40},
     vis_showinline:bool=False, return_result:list=['prediction']
 )->torch.Tensor:
+
+    def construct_matrixfactorizer(R, factorizer, mf_args:dict)->ALS_MF:
+        mfer=None
+    
+        if factorizer == "WeightedALS_MF":
+            mfer = WeightedALS_MF(
+                R=R,
+                fill_empty=mf_args['fill_empty'],
+                w_m = mf_args['w_m'],w_obs = mf_args['w_obs'],
+                latency = mf_args['latency'],
+                l2_reg =  mf_args['l2_reg']   
+            )
+        elif factorizer == "ALS_MF":
+            mfer = ALS_MF(
+                R=R,latency = mf_args['latency'],
+                l2_reg =  mf_args['l2_reg'],
+            )
+        return mfer
 
     print(factorizer)
     matrixfactorizer = construct_matrixfactorizer(R=matrix,factorizer=factorizer,mf_args=mf_args)
