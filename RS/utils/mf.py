@@ -111,7 +111,7 @@ class ALS_MF():
                 }
             )
             if early == 3:
-                return mse_history
+                return {"loss":mse_history}
     
         self._embedding['user'] = self._embedding['user'].cpu()
         self._embedding['item'] = self._embedding['item'].cpu()

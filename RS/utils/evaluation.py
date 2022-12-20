@@ -139,7 +139,7 @@ def Evaluate(result_root, recommendlist, gth, item_list, topN_range=1000, showin
     plotPR_curve(cmp_diff_n,os.path.join(result_root ,"metrics","PR.jpg"),showinline=showinline)
     plotROC(cmp_diff_n, os.path.join(result_root , "metrics","ROC.jpg"), showinline=showinline)
 
-def zoom_in_topK(metrics,savepath, wants=['recall'],topk=20 ,showinline=False):
+def zoom_in_topK(metrics,savepath,title, wants=['recall'],topk=20 ,showinline=False):
     VisualizationKit.plot_PRF1_different_n(
         prec=metrics['precision'][:topk],
         recall=metrics['recall'][:topk],
@@ -150,7 +150,7 @@ def zoom_in_topK(metrics,savepath, wants=['recall'],topk=20 ,showinline=False):
     for want in wants:
         VisualizationKit.zoom_in_topk(
             whole=metrics[want],topk=topk,
-            plot_title=f"common courses method\n{want} : 1~{topk}",
+            plot_title=f"{title}\n{want} : 1~{topk}",
             savename=os.path.join(savepath, f"{want}_top{topk}.jpg"),
             showinline=showinline
         )

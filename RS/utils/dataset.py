@@ -2,18 +2,18 @@ import numpy as np
 import torch
 import os 
 import sys
+from tqdm import tqdm
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import normalize
 sys.path.append(os.path.dirname(__file__))
-from plotutils import plot_tsne_2d
+from plotutils import plot_tsne_2d, plotLoss
 from dictutils import *
+from mf import ALS_MF
 
 """
 Some functions to process our dataset.
 """
-
-
 
 def transpose_df(df:pd.DataFrame, col_to:str)->pd.DataFrame:
     col = df.columns.tolist()
@@ -24,30 +24,77 @@ def transpose_df(df:pd.DataFrame, col_to:str)->pd.DataFrame:
     )
     return pd.concat((coldf, tdf), axis = 1)
 
-def clusterting(items:list, x:np.ndarray, k:int, savingpath:os.PathLike, visshow=False):
-    cluster = KMeans(n_clusters=k)
-    print("clutsering ..")
-    cluster.fit(x)
-    y = cluster.predict(x)
-    print("OK ..")
-
-    cluster_result = {}
-    for i in range(k):
-        cluster_result[i] = []
-    y_ = y.tolist()
-    for idx, i in enumerate(items):
-        cluster_result[y_[idx]].append(i)
+def user_item_clustering(User_Item_df:pd.DataFrame, num_clusters:list, savingpath:os.PathLike, d:torch.device, plot_show=False):
     
-    if not os.path.exists(savingpath):
-        os.mkdir(savingpath)
-    writejson(cluster_result, os.path.join(savingpath, "cluster.json"))
-    print("visualization ..")
+    def clusterting(items:list, x:np.ndarray, k:int, savingpath:os.PathLike, visshow=False):
+        cluster = KMeans(n_clusters=k)
+        print("clutsering ..")
+        cluster.fit(x)
+        y = cluster.predict(x)
+        print("OK ..")
 
-    plot_tsne_2d(
-        X=x, name=f"clustering_{k}", labels=y,
-        savepath=os.path.join(savingpath,f"clustering_{k}.jpg"),
-        showinline=visshow
-    )    
+        cluster_result = {}
+        for i in range(k):
+            cluster_result[i] = []
+        y_ = y.tolist()
+        for idx, i in enumerate(items):
+            cluster_result[y_[idx]].append(i)
+    
+        if not os.path.exists(savingpath):
+            os.mkdir(savingpath)
+        writejson(cluster_result, os.path.join(savingpath, "cluster.json"))
+        print("visualization ..")
+
+        plot_tsne_2d(
+            X=x, name=f"clustering_{k}", labels=y,
+            savepath=os.path.join(savingpath,f"clustering_{k}.jpg"),
+            showinline=visshow
+        )    
+
+    mf=ALS_MF(
+        R = torch.tensor(
+            User_Item_df.drop(columns=['uid']).values
+        )
+    )
+    
+    mf_model_path = os.path.join(savingpath, "model")
+    if not os.path.exists(mf_model_path):
+        os.mkdir(mf_model_path)
+    
+    h = mf.train(
+        device=d,
+        tmp_savepath=os.path.join(savingpath, "model")
+    )
+    
+    plotLoss(
+        loss=h['loss'], savename=os.path.join(
+            mf_model_path, "mse.jpg"
+        ),
+        showinline=plot_show
+    )
+
+    for i,k in zip(['user','item'],num_clusters):
+        
+        print(i)
+        latency =torch.load( os.path.join(mf_model_path, f"{i}.pt")).cpu().numpy()
+        print(latency.shape)
+        
+        c_path = os.path.join(savingpath, f"{i}clustering")
+        if not os.path.exists(c_path):
+            os.mkdir(c_path)
+        
+        items = None
+        if i == "user":
+            items = User_Item_df.uid.tolist()
+        elif i == "item":
+            items = User_Item_df.drop(columns=['uid']).columns.tolist()
+        
+        clusterting(
+            items=items,
+            x = latency,k=k,
+            savingpath=c_path,
+            visshow=plot_show  
+        )
 
 
 class Dataset():
@@ -121,7 +168,7 @@ class Dataset():
 
 
 
-def __combine_multi_domain(Dataset:Dataset=None, datafolder:dict=None, domains:list=[])->pd.DataFrame:
+def combine_multi_domain(Dataset:Dataset=None, datafolder:dict=None, domains:list=[])->pd.DataFrame:
 
 
     if (Dataset is not None) and (datafolder is not None):
@@ -222,7 +269,7 @@ def build_cross_domain_matrix(dataset:Dataset, domains:list, savedir:os.PathLike
     }
     writejson(info, os.path.join(savedir,"info.json"))
 
-    crossdomain_user_item_df=__combine_multi_domain(Dataset=dataset, domains=domains)
+    crossdomain_user_item_df = combine_multi_domain(Dataset=dataset, domains=domains)
     
     cross_domain_df_saving_path = os.path.join(savedir, "cross_domain.csv")
     print(f"save cross domain df to : {cross_domain_df_saving_path}")
@@ -239,3 +286,40 @@ def build_cross_domain_matrix(dataset:Dataset, domains:list, savedir:os.PathLike
         return info, cross_domain_matrix
     elif return_data == "torch":
         return info, torch.tensor(cross_domain_matrix,dtype=torch.double)
+
+
+def cluster_level_matrix(
+    R:pd.DataFrame,user_cluster:dict, item_cluster:dict,
+    thr=5
+)->np.ndarray:
+
+    UI = np.zeros(
+        (len(user_cluster.keys()),len(item_cluster.keys()))
+    )
+    print(UI.shape)
+
+    z = 0
+    t = 0
+    for uu, users in tqdm(user_cluster.items(), total= len(user_cluster.keys())):
+        cb_sub=R[R['uid'].isin(users)]
+        for ii, items in item_cluster.items():
+            t+=1
+            #cb_sub=R[R['uid'].isin(users)]
+            if not cb_sub.shape[0]:
+                UI[int(uu)][int(ii)] = 0
+                continue
+            
+            cb_sub_i = cb_sub[items]
+            if not cb_sub_i.shape[0]:
+                print("Item Error!!!")
+                return None
+            
+            v = cb_sub_i.values
+            obs_num = np.count_nonzero(v)
+            if obs_num < thr:
+                z +=1 
+                UI[int(uu)][int(ii)] = 0
+            else:
+                UI[int(uu)][int(ii)] = np.sum(v)/obs_num
+    print(f"{z}/{t}")
+    return UI

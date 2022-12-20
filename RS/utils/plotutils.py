@@ -35,18 +35,18 @@ def plot_PRF1_different_n(prec, recall, f1, savepath, showinline=True, annotate=
         
     max_topN = len(prec)
     f1maxpos = int(np.argmax(np.array(f1)))
-    # f1_max = f1maxpos-1 because starting from N = 0
+
     x_axis = list(k for k in range(1,max_topN+1))
     plt.figure(dpi=800)
     plt.plot(x_axis, prec, label = "precision",color="orange")
     plt.plot(x_axis,recall,label = "recall",color = "blue")
     plt.plot(x_axis,f1,label = "f1",color="green")
-    plt.scatter(f1maxpos, f1[f1maxpos], color="purple")
+    plt.scatter(f1maxpos+1, f1[f1maxpos], color="purple")
     if annotate:
         plt.annotate(
-        text=f"Top N : {f1maxpos-1}\nF1 max : {f1[f1maxpos]:.2f}\nPrecision : {prec[f1maxpos]:.2f}\nRecall : {recall[f1maxpos]:.2f}", 
+        text=f"Top N : {f1maxpos+1}\nF1 max : {f1[f1maxpos]:.2f}\nPrecision : {prec[f1maxpos]:.2f}\nRecall : {recall[f1maxpos]:.2f}", 
         xytext=(max_topN+2, 0.0),color="black",
-        xy=(f1maxpos, f1[f1maxpos]),
+        xy=(f1maxpos+1, f1[f1maxpos]),
         arrowprops={
             'width':0.01,'headlength':6,'headwidth':4,
             'facecolor':"black","shrink":0
@@ -73,9 +73,8 @@ def ROC(fpr, recall,savepath, showinline=True):
     #plt.fill_between(fpr, fpr,recall, color="orange",alpha= 0.3)
     plt.ylabel("Recall")
     plt.xlabel("False Positive Rate")
-    plt.text(0.0,0.8, f"AUC : {auc:.2f}",bbox=dict(facecolor='none', edgecolor='black'))
     plt.title("ROC")
-    plt.tight_layout()
+    plt.legend()
     plt.savefig(savepath)
     if not showinline:
         plt.close()
@@ -133,7 +132,6 @@ def plot_tsne_2d(X,name,savepath, labels=None, tsneresult=False, showinline=True
         )
     
     plt.title(name)
-    plt.legend()
     plt.savefig(savepath)
     if not showinline:
         plt.close()

@@ -46,20 +46,7 @@ def mf(
         ).cpu()
     return ret
 
-def generate_recommend_list(testing_user_book_prediction,testing_user:list,result_saving_path:os.PathLike):
-    print("generate recommend list ..")
-    rlist = {}
-    for i, testu in tqdm(
-        enumerate(testing_user), total=len(testing_user)
-    ):
-        rank = np.argsort(-testing_user_book_prediction[i]).tolist()
-        rlist[str(testu)] = list(str(cate) for cate in rank)
-    
-    rlist_save = os.path.join(result_saving_path, "recommendlist.json")
-    writejson(rlist,rlist_save)
-    
-    print(f"done .., recommend list is at {rlist_save}")
-    return rlist_save
+
 
 def Cross_MF(
     cross_matrix:torch.Tensor,testing_range:int,testing_user:list,
@@ -82,12 +69,81 @@ def Cross_MF(
         testing_range:, 0:1000
     ].numpy()
 
-    result = generate_recommend_list(
-        testing_user_book_prediction,
-        testing_user, result_saving_path
+    
+    print("generate recommend list ..")
+    rlist = {}
+    for i, testu in tqdm(enumerate(testing_user), total=len(testing_user)):
+        rank = np.argsort(-testing_user_book_prediction[i]).tolist()
+        rlist[str(testu)] = list(str(cate) for cate in rank)
+    
+    rlist_save = os.path.join(result_saving_path, "recommendlist.json")
+    writejson(rlist,rlist_save)
+    print(f"done .., recommend list is at {rlist_save}")
+    return rlist_save
+
+def cbmf_prediction(
+    origin, clustering_predictions,
+    alpha,
+    testing_range:int,testing_user:list,
+    book_clusters_path:os.PathLike, 
+    user_cluster_path:os.PathLike,
+    result_saving_path:os.PathLike
+):
+    origin_prediction = origin[testing_range:, 0:1000]
+    book_cluster = loadjson(book_clusters_path) 
+    user_course_cluster = loadjson(user_cluster_path)
+
+    rlist = {}
+    for i, testu in tqdm(enumerate(testing_user), total=len(testing_user)):
+        cates = origin_prediction[i]
+        itcoursecluster = np.Inf
+        for k,v in user_course_cluster.items():
+            if int(testu) in v:
+                itcoursecluster = int(k)
+                break
+    
+        cate_cluster = [0]*1000
+        for catei in range(1000):
+            for k,v in book_cluster.items():
+                if str(catei) in v:
+                    cate_cluster[catei] = int(k)
+                    break
+        
+        cluster_suggest = clustering_predictions[
+            itcoursecluster, cate_cluster
+        ]
+
+        finalcates = (1-alpha)*cates + alpha*cluster_suggest
+        rank = np.argsort(-finalcates).tolist()
+        rlist[testu] = list(str(cate) for cate in rank)
+
+    writejson(
+        rlist,
+        os.path.join(result_saving_path,"recommendlist.json") 
     )
-    return result
- 
+    return os.path.join(result_saving_path,"recommendlist.json") 
+    
+
+
+
+def CBMF(
+    cluster_level_matrix:torch.Tensor, 
+    model_args:dict,model:str="ALS_MF",
+    on_device:torch.device=torch.device('cpu'),
+    model_save_path=os.path.join(".","CBMF"),
+    show_loss=False
+):
+    print("CBMF .. ")
+    clustering_predictions = mf(
+        matrix=cluster_level_matrix,
+        model_save_path=model_save_path,d=on_device,
+        factorizer=model,mf_args=model_args,
+        vis_showinline=show_loss
+    )['prediction']
+    print("CBMF done ..")
+    return clustering_predictions
+    
+    
 
 if __name__ == "__main__":
     
@@ -126,7 +182,7 @@ if __name__ == "__main__":
 
     #info = loadjson(os.path.join(dataroot, "crossdomain","normalize","info.json"))
     mf_args = {
-        'latency':40,'l2_reg':0.1,
+        'latency':40,'l2_reg':0.7,
         'fill_empty':torch.mean(cross_matrix).item()/2,
         'w_obs':1, 'w_m':0.001,
         'epochs':3
